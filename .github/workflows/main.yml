@@ -1,15 +1,11 @@
 name: Android Emulator Environment
 
-on:
-  workflow_dispatch:
-
-env:
-  ANDROID_IMAGE: budtmo/docker-android:emulator_11.0
+on: workflow_dispatch
 
 jobs:
   android-emulator:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # Máximo 6 horas (límite de GitHub)
+    timeout-minutes: 360
 
     steps:
     - name: Configurar entorno Android
@@ -18,9 +14,6 @@ jobs:
         api-level: 30
         arch: x86_64
         profile: Nexus 6
-        script: |
-          adb wait-for-device
-          echo "Emulador listo"
 
     - name: Iniciar emulador con VNC
       run: |
@@ -30,24 +23,21 @@ jobs:
           -p 5554:5554 \
           -p 5555:5555 \
           -e DEVICE="Nexus 5" \
-          -e EMULATOR_ARGS="-no-snapshot-save -no-boot-anim -noaudio -gpu swiftshader_indirect" \
           -v $(pwd)/android_emulator:/root \
-          --name android-emulator \
-          ${{ env.ANDROID_IMAGE }}
-      
-    - name: Exponer puerto con ngrok
-      uses: gabrielbb/ngrok-action@v1
-      with:
-        auth-token: ${{ secrets.NGROK_AUTH_TOKEN }}
-        region: us
-        protocol: tcp
-        port: 6080
-      env:
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          budtmo/docker-android:emulator_11.0
+
+    - name: Exponer con ngrok (versión segura)
+      run: |
+        curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+        echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+        sudo apt update && sudo apt install ngrok
+        ngrok tcp 6080 --authtoken ${{ secrets.NGROK_AUTH_TOKEN }} --log=stdout > ngrok.log &
+        sleep 5
+        echo "URL de conexión: $(grep 'url=tcp://.ngrok.io' ngrok.log | sed -n 's/.*url=\(.*\)/\1/p')"
 
     - name: Mantener sesión activa
       run: |
         while true; do
+          adb shell input keyevent 82
           sleep 300
-          adb shell input keyevent 82  # Mantener activo
         done
