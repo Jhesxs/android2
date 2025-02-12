@@ -1,7 +1,7 @@
-name: Android Cloud Emulator Tests
+name: Android Emulator Tests
 
 on:
-  workflow_dispatch: # Permite ejecutar manualmente desde la web de GitHub
+  workflow_dispatch: # Ejecución manual desde GitHub
   push:
     branches: [ main ]
   pull_request:
@@ -9,21 +9,19 @@ on:
 
 jobs:
   android-tests:
-    runs-on: ubuntu-latest # Usa Linux (más rápido para Android que macOS en GitHub)
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
-          # Configuraciones equivalentes al script original (simplificado)
+          # Configuraciones principales (ajusta según tus necesidades)
           - api-level: 25
-            abi: "google_apis;arm64-v8a"
-          - api-level: 25
-            abi: "google_apis;armeabi-v7a"
+            abi: google_apis_arm64-v8a
           - api-level: 24
-            abi: "google_apis;arm64-v8a"
-          - api-level: 24
-            abi: "google_apis;armeabi-v7a"
-          # ... Agrega otras configuraciones según necesites
-        fail-fast: false # No cancelar todo si una combinación falla
+            abi: google_apis_armeabi-v7a
+          - api-level: 23
+            abi: google_apis_armeabi-v7a
+          # ... Agrega más configuraciones aquí
+      fail-fast: false # ✅ Correctamente indentado y sin comillas
 
     steps:
     - name: Checkout code
@@ -38,23 +36,18 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
 
-    - name: Create AVD and start emulator
-      uses: android-actions/emulator-runner@v2
+    - name: Run Android Emulator
+      uses: ReactiveCircus/android-emulator-runner@v2
       with:
         api-level: ${{ matrix.api-level }}
-        arch: ${{ contains(matrix.abi, 'arm64-v8a') && 'arm64-v8a' || 'armeabi-v7a' }}
-        profile: "Nexus 6" # Perfil de dispositivo
+        arch: ${{ contains(matrix.abi, 'arm64') && 'arm64-v8a' || 'armeabi-v7a' }}
+        profile: Nexus 6
         script: |
           adb devices
-          echo "Emulador listo"
+          ./gradlew connectedCheck
 
-    - name: Run Android tests
-      run: |
-        # Ejemplo: Ejecutar pruebas de Gradle
-        ./gradlew connectedAndroidTest
-
-    - name: Upload test results
-      if: always() # Sube resultados incluso si falla
+    - name: Upload Test Results
+      if: always()
       uses: actions/upload-artifact@v3
       with:
         name: test-results-${{ matrix.api-level }}-${{ matrix.abi }}
