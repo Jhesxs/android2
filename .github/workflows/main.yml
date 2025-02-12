@@ -1,0 +1,53 @@
+name: Android Emulator Environment
+
+on:
+  workflow_dispatch:
+
+env:
+  ANDROID_IMAGE: budtmo/docker-android:emulator_11.0
+
+jobs:
+  android-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # Máximo 6 horas (límite de GitHub)
+
+    steps:
+    - name: Configurar entorno Android
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 30
+        arch: x86_64
+        profile: Nexus 6
+        script: |
+          adb wait-for-device
+          echo "Emulador listo"
+
+    - name: Iniciar emulador con VNC
+      run: |
+        docker run -d \
+          --privileged \
+          -p 6080:6080 \
+          -p 5554:5554 \
+          -p 5555:5555 \
+          -e DEVICE="Nexus 5" \
+          -e EMULATOR_ARGS="-no-snapshot-save -no-boot-anim -noaudio -gpu swiftshader_indirect" \
+          -v $(pwd)/android_emulator:/root \
+          --name android-emulator \
+          ${{ env.ANDROID_IMAGE }}
+      
+    - name: Exponer puerto con ngrok
+      uses: gabrielbb/ngrok-action@v1
+      with:
+        auth-token: ${{ secrets.NGROK_AUTH_TOKEN }}
+        region: us
+        protocol: tcp
+        port: 6080
+      env:
+        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+
+    - name: Mantener sesión activa
+      run: |
+        while true; do
+          sleep 300
+          adb shell input keyevent 82  # Mantener activo
+        done
