@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 jobs:
   android-emulator:
-    runs-on: macos-latest  # Obligatorio para aceleración hardware
+    runs-on: macos-latest
     timeout-minutes: 360
 
     steps:
@@ -17,23 +17,42 @@ jobs:
         api-level: 30
         arch: x86_64
         profile: Nexus 6
+        disable-animations: true
         script: |
+          # Esperar inicialización completa
           adb wait-for-device
-          echo "Emulador inicializado"
+          while [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" != "1" ]; do
+            echo "Esperando inicialización del sistema..."
+            sleep 10
+          done
+          
+          # Configuraciones adicionales
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          
+          echo "Emulador listo"
 
-    - name: Instalar ngrok
+    - name: Exponer y conectar
       run: |
+        # Instalar ngrok
         brew install ngrok/ngrok/ngrok
-
-    - name: Exponer puerto ADB (5555)
-      run: |
+        
+        # Exponer puerto ADB
         ngrok tcp 5555 --authtoken ${{ secrets.NGROK_AUTH_TOKEN }} --log=stdout > ngrok.log &
-        sleep 5
-        echo "URL de conexión: $(grep 'url=tcp://.ngrok.io' ngrok.log | awk -F'url=' '{print $2}')"
+        sleep 15
+        
+        # Obtener URL de conexión
+        NGROK_URL=$(grep -oE "tcp://(.+).ngrok.io:[0-9]+" ngrok.log | head -n1)
+        echo "URL de conexión: $NGROK_URL"
+        
+        # Conectar via ADB
+        adb connect ${NGROK_URL#tcp://}
 
     - name: Mantener activo
       run: |
         while true; do
+          adb devices
           adb shell input keyevent 82
           sleep 300
         done
